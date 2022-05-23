@@ -1,0 +1,1357 @@
+\documentclass[12pt]{article}
+
+%-------Packages---------
+
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fullpage}
+\usepackage{ifthen}
+\usepackage{pgfplots}
+\usepackage{tikz}
+
+\usetikzlibrary{arrows.meta,backgrounds,calc,cd,decorations.pathmorphing,fit,patterns,positioning}
+
+\pgfplotsset{compat=1.15}
+
+%-------Format---------
+
+\title{Degree One Contributions and Open Gromov-Witten Invariants (Illustrations)}
+\date{2021}
+\author{Sarah McConnell}
+
+\counterwithin{figure}{section}
+
+%-------Commands---------
+
+\newcommand{\nc}{\newcommand}
+
+\nc{\C}{\mathbb{C}}
+\nc{\M}{\mathcal{M}}
+\nc{\N}{\mathcal{N}}
+
+\nc{\Mbar}{\ov{\M}}
+\nc{\Nbar}{\ov{\N}}
+
+\nc{\ov}[1]{\overline{#1}}
+
+\nc{\f}[2]{\frac{#1}{#2}}
+\nc{\df}[2]{\dfrac{#1}{#2}}
+
+%-------Tikz Commands---------
+
+\nc\sphere{}
+\def\sphere[#1](#2)(#3)(#4){
+    % \sphere[draw options](position)(x-radius)(y-radius)
+    \begin{scope}[shift={(#2)}]
+        \def\xRadius{#3}
+        \def\yRadius{#4}
+	    \draw[#1] (-\xRadius,0) to [bend right=15] (\xRadius,0);
+	    \draw[#1] [dashed] (-\xRadius,0) to [bend left=10] (\xRadius,0);
+	    \draw[#1] (0,0) ellipse ({\xRadius} and {\yRadius});
+    \end{scope} 
+}
+
+\nc\disk{}
+\def\disk[#1](#2)(#3)(#4){
+    % \disk[draw options](position)(x-radius)(y-radius)
+    \begin{scope}[shift={(#2)}]
+        \def\xRadius{#3}
+        \def\yRadius{#4}
+	    \draw[#1] (-\xRadius,0) to [bend right=15] (\xRadius,0);
+	    \draw[#1] [dashed] (-\xRadius,0) to [bend left=10] (\xRadius,0);
+	    \draw[#1] (\xRadius,0) arc (0:180:{\xRadius} and {\yRadius});
+    \end{scope} 
+}
+
+\nc\addGenus{}
+\def\addGenus[#1](#2)(#3)(#4){
+    % \addGenus[draw options](position)(angle)(scale)
+    \coordinate (genus) at (#2);
+    \begin{scope}[scale=#4]
+        \draw[#1] [rotate=#3] ($(genus)+(-1,0)$) to [bend left] ($(genus)+(1,0)$);
+        \draw[#1] [rotate=#3] ($(genus)+(-1.2,0.1)$) to [bend right] ($(genus)+(1.2,0.1)$);
+    \end{scope}
+}
+
+% draws vertical torus with marked point on bottom
+\nc\torus{}
+\def\torus[#1](#2)(#3)(#4){
+    % \torus[draw options](node position)(angle)(y-radius)
+    \node at (#2) {$\bullet$};
+    \def\torusXrad{0.6*#4}
+    \begin{scope}[shift={(#2)}, rotate around={#3:(#2)}]
+        \draw[#1] (0,#4) ellipse ({\torusXrad} and {#4});
+        \addGenus[#1](0,#4)(90)(0.375*#4);
+    \end{scope}
+}
+
+% draws closed Riemann surface with marked point on bottom
+\nc\closedGhost{}
+\def\closedGhost[#1](#2)(#3)(#4)(#5)(#6){
+    % \closedGhost[draw options](node position)(angle)(x-radius)(y-radius)(genus)
+    \node at (#2) {$\bullet$};
+    \begin{scope}[shift={(#2)}, rotate around={#3:(#2)}]
+        \draw[#1] (0,#5) ellipse ({#4} and {#5});
+        
+	    \edef\genusDist{0}
+	    \pgfmathparse{2*#5/(#6+1)} % tikz doesn't like addition
+        \edef\genusDist{\pgfmathresult}
+
+        \def\genusScale{0.5*#4}
+        
+        \foreach \idx in {1,...,#6}
+            \addGenus[#1](0,\idx*\genusDist)(0)(\genusScale);
+    \end{scope}
+}
+
+% helper function only; use openGhost below
+\nc\openGhostR{}
+\def\openGhostR[#1](#2)(#3)(#4)(#5){
+    % \openGhost[draw options](node position)(horizontal radius)(height)(number boundary circles)
+    \node at (#2) {$\bullet$};
+    
+    \begin{scope}[shift={(#2)}]
+        \draw[#1] (2*#3,0) arc (0:180:{#3} and {#4});
+        
+        \edef\bdryRad{0}
+    	\pgfmathparse{#3/(2*#5-1)} % tikz doesn't like addition
+        \edef\bdryRad{\pgfmathresult}
+        
+        \foreach \idx in {1,...,#5}
+            \draw [bend right=15] (4*\idx*\bdryRad-4*\bdryRad,0) to (4*\idx*\bdryRad-2*\bdryRad,0);
+        \foreach \idx in {1,...,#5}
+            \draw [bend left=10, dashed] (4*\idx*\bdryRad-4*\bdryRad,0) to (4*\idx*\bdryRad-2*\bdryRad,0);
+        \ifthenelse{#5=1}{}{
+            \foreach \idx in {2,...,#5}
+                \draw (4*\idx*\bdryRad-4*\bdryRad,0) to [out=90, in=0] (4*\idx*\bdryRad-5*\bdryRad,0.3*#4) to [out=180, in=90] (4*\idx*\bdryRad-6*\bdryRad,0);
+            }
+    \end{scope}
+}
+
+% draws genus 0 Riemann surface with arbitrary number of boundary components pointing downward, one marked point on bottom
+% by defuault Riemann surface appears to the right of the node
+% argument "left" causes Riemann surface to appear to the left of the node
+\nc\openGhost{}
+\def\openGhost[#1](#2)(#3)(#4)(#5)(#6){
+    % \openGhost[draw options](node position)(horizontal radius)(height)(number boundary circles)(left or right)
+    \ifthenelse{\equal{#6}{left}}{
+        \begin{scope}[xscale=-1]
+            \openGhostR[#1](#2)(#3)(#4)(#5)
+        \end{scope}
+    }{\openGhostR[#1](#2)(#3)(#4)(#5)}
+}
+
+\begin{document}
+
+This file contains the code for illustrations appearing in ``Degree One Contributions and Open Gromov-Witten Invariants,'' made available here for public use.
+
+\listoffigures
+
+\setcounter{section}{1}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+\def\h{1}
+\def\w{0.6}
+\def\d{5}
+
+\coordinate (c2) at (0,0);
+\coordinate (im) at (\d,0);
+
+\disk[](c2)(\r)(\r)
+
+\coordinate (LNode2) at ($(c2)+(-\r,0)$);
+\openGhost[](LNode2)(\w)(\h)(1)(left);
+\begin{scope}[shift={(LNode2)}]
+	\addGenus[](-1*\w,0.5*\h)(0)(0.25);
+\end{scope}
+
+\coordinate (RNode2) at ($(c2)+(0.6*\r,0.8*\r)$);
+\closedGhost[](RNode2)(-30)(\w)(\h)(2);
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\coordinate (f) at ($0.5*(c2)+0.5*(im)$);
+\draw [->] ($(f)+(-1,0)$) to [bend left] ($(f)+(1,0)$);
+\node at ($(f)+(0,0.5)$) {$u$};
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\disk[](im)(\r)(\r)
+
+\coordinate (LNodeI) at ($(im)+(-\r,0)$);
+\node at (LNodeI) {$\bullet$};
+
+\coordinate (RNodeI) at ($(im)+(0.6*\r,0.8*\r)$);
+\node at (RNodeI) {$\bullet$};
+
+\end{tikzpicture}
+\caption{A degree one cover of a disk.}
+\end{figure}
+
+\setcounter{section}{4}
+\setcounter{figure}{0}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\disk[](-4,0)(2)(3);
+\coordinate (node) at (-2,0);
+\openGhost[](node)(2.5)(3)(3)();
+
+\end{tikzpicture}
+\caption{A curve of type $(0,3)$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+% genus 2 curve
+\coordinate (g2) at (0,0);
+\node at ($(g2)+(-1.5,0)$) {$\bullet$};
+\sphere[](g2)(1.5)(3);
+\addGenus[]($(g2)+(0,2)$)(90)(0.5);
+\addGenus[yscale=-1]($(g2)+(0,-2)$)(90)(0.5);
+
+% loops
+\draw [bend right=15] (-1.45,0.75) to (1.45,0.75);
+\draw [bend left=10, dashed] (-1.45,0.75) to (1.45,0.75);
+\draw [bend right=15] (-1.45,-0.75) to (1.45,-0.75);
+\draw [bend left=10, dashed] (-1.45,-0.75) to (1.45,-0.75);
+\node [right] at (1.45,0.75) {$\gamma$};
+\node [right] at (1.45,-0.75) {$\ov{\gamma}$};
+
+% arrow
+\coordinate (arrow) at ($(g2)+(3,0)$);
+\draw [->, bend left] ($(arrow)+(-0.75,0)$) to ($(arrow)+(0.75,0)$);
+
+% nodal curve
+\coordinate (nodal) at ($(g2)+(5.5,0)$);
+\sphere[](nodal)(1)(1);
+\node at ($(nodal)+(-1,0)$) {$\bullet$};
+
+\coordinate (upnode) at ($(nodal)+(0,1)$);
+\torus[](upnode)(0)(1.2);
+
+\coordinate (downnode) at ($(nodal)+(0,-1)$);
+\begin{scope}[yscale=-1]
+    \torus[](downnode)(0)(1.2);
+\end{scope}
+
+\end{tikzpicture}
+\caption{Embedding $\Mbar_{1,1}$ in $\Mbar_{(1,1),0,1}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\disk[](0,0)(2)(3);
+\coordinate (node) at (1.49,2);
+\torus[](node)(-60)(2);
+
+\end{tikzpicture}
+\caption{Typical curve in $\Nbar_{1,1}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\disk[](-4,0)(2)(3);
+\node at (-2,0) {$\bullet$};
+\disk[](0,0)(2)(3);
+
+\coordinate (node) at (1.49,2);
+\torus[](node)(-60)(2)
+
+\draw [decorate,decoration={brace,amplitude=10pt,mirror},xshift=0.4pt,yshift=-0.4pt] (-2,-0.5) -- (5,-0.5) node[black,midway,yshift=-0.6cm] {constant};
+
+\end{tikzpicture}
+\caption{Typical curve in $\Nbar_{1,1} \cap \Nbar_\sigma$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\disk[](-4,0)(2)(3);
+
+\openGhost[](-2,0)(2)(3)(1)();
+\addGenus[](0,1.5)(30)(0.75);
+
+\end{tikzpicture}
+\caption{Typical curve in $\Nbar_\sigma$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{2}
+\def\w{0.6*\r}
+
+% sigma0
+\coordinate (sigma0) at (0,0);
+\sphere[](sigma0)(\r)(\r);
+\node [left] at ($(sigma0)+(-\r,0)$) {Fix$(\sigma)$};
+
+\node at ($(sigma0)+(\r,0)$) {$\bullet$};
+
+% sigma1
+\coordinate (sigma1) at ($(sigma0)+(\r+\w,0)$);
+\sphere[](sigma1)(\w)(\r)
+
+\begin{scope}[shift=(sigma1)]
+	\addGenus[](0,0.375*\r)(20)(0.5);
+	\addGenus[yscale=-1](0,-0.375*\r)(20)(0.5);
+\end{scope}
+
+% labels
+\begin{scope}[shift=(sigma1)]
+	\draw [decorate,decoration={brace,amplitude=10pt,mirror},xshift=0.4pt,yshift=-0.4pt] (\w+0.5,0) -- (\w+0.5,\r) node[black,midway,xshift=0.6cm] {$\Sigma$};
+	\draw [decorate,decoration={brace,amplitude=10pt,mirror},xshift=0.4pt,yshift=-0.4pt] (\w+1.5,-\r) -- (\w+1.5,\r) node[black,midway,xshift=0.8cm] {$\Sigma^{(\C)}$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{The complex double of a curve in $\Nbar_\sigma$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{2}
+\def\w{0.6*\r}
+
+% sigma0
+\coordinate (sigma0) at (-1,0);
+
+\begin{scope}[shift=(sigma0)]
+	\draw (0,0) circle (\r);
+	\draw [thick, bend right = 15] (-\r,0) to (\r,0);
+\end{scope}
+
+% collar0
+\begin{scope}[shift=(sigma0)]
+    % erase part of sphere
+	\draw [white, fill=white] (1.8,-0.872) to [bend left=20] (1.8,0.872) -- (2.1,1) -- (2.1,-1) -- cycle;
+	
+	% draw edges of collar
+	\draw (1.8,-0.872) to [bend right=5] (1.8,0.872);
+	\draw (1.8,-0.872) to [bend left=20] (1.8,0.872);
+	\draw (1.6,-1.2) to [bend left=20] (1.6,1.2);
+\end{scope}
+\begin{scope}[shift=(sigma0)]
+    % fill collar
+	\clip (sigma0) circle (\r);
+	\draw [pattern = north east lines] (1.8,-0.872) to [bend left=20] (1.8,0.872) to [bend right=50] (1.6,1.2) to [bend right=20] (1.6,-1.2) to [bend right=50] cycle;
+\end{scope}
+\node [below right] at ($(sigma0)+(1.7,-0.872)$) {$A_z$};
+
+% sigma1
+\coordinate (sigma1) at (4,0);
+\begin{scope}[shift=(sigma1)]
+	\draw (0,0) ellipse ({\w} and {\r});
+	\draw [thick, bend right = 15] (-\w,0) to (\w,0);
+	\addGenus[](0,0.375*\r)(20)(0.5);
+	\addGenus[yscale=-1](0,-0.375*\r)(20)(0.5);
+\end{scope}
+
+% collar1
+\begin{scope}[shift={(-\w+0.2,0)}]
+    % erase part of surface
+    \draw [white, fill=white] (3.92,-0.872) to [bend right=20] (3.92,0.872) -- (3.7,1) -- (3.7,-1) -- cycle;
+    
+    % draw edges of collar
+    \draw (3.92,-0.872) to [bend left=5] (3.92,0.872);
+    \draw (3.92,-0.872) to [bend right=20] (3.92,0.872);
+    \draw (4.04,-1.2) to [bend right=20] (4.04,1.2);
+\end{scope}
+\begin{scope}[shift={(-\w+0.2,0)}]
+    \node [below left] at (3.92,-0.872) {$A_y$};
+    % fill collar
+    \clip (sigma1) ellipse ({\w} and {\r});
+    \draw [pattern = north east lines] (3.92,-0.872) to [bend right=20] (3.92,0.872) to [bend left=50] (4.04,1.2) to [bend left=20] (4.04,-1.2) to [bend left=50] cycle;
+    \node [below left] at (3.92,-0.872) {$A_{y_i}$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Collars near nodes.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\d{1}
+\def\w{1}
+\def\r{3}
+\def\h{2}
+
+% collar0
+\draw (-\d,-1) to [bend right=10] (-\d,1);
+\draw (-\d,-1) to [bend left=15] (-\d,1);
+\draw [dashed] (-\d-\w,-1) to [bend right=10] (-\d-\w,1);
+\draw (-\d-\w,-1) to [bend left=15] (-\d-\w,1);
+\draw (-\d-\w,-1) -- (-\d,-1);
+\draw (-\d-\w,1) -- (-\d,1);
+
+\node at (-\d-0.75*\w,0.4) {$\bullet$};
+\node [left] at (-\d-\w,0.4) {$\exp_z(-j(s\tau_0))$};
+\node at (-\d-0.25*\w,-0.8) {$\bullet$};
+\node [below] at (-\d-0.25*\w,-0.9) {$\exp_z(t\tau_0)$};
+\node at (-\d-0.5*\w,-2) {$A_z$};
+
+% tan0
+\coordinate (center0) at (-\r-3,-\h);
+\coordinate (jt0) at ($(center0)+(-0.2,0.5)$);
+\coordinate (t0) at ($(center0)+(-0.4,-0.4)$);
+\draw [->] (center0) to (t0);
+\draw [->] (center0) to (jt0);
+\node [below] at (t0) {$\tau_0$};
+\node [above] at (jt0) {$-j(\tau_0)$};
+\draw ($(center0)+(-1,-2)$) -- ($(center0)+(-1,1)$) -- ($(center0)+(1,2)$) -- ($(center0)+(1,-1)$) -- cycle;
+\node at ($(center0)+(0,-2)$) {$T_z\Sigma_0$};
+
+% exp0
+\coordinate (arrow0) at ($0.5*(center0)+0.5*(-\d,0)$);
+\draw [->] ($(arrow0)+(-0.75,-0.25)$) to [bend left] ($(arrow0)+(0.75,0.25)$);
+\node [above left] at ($(arrow0)+(0,0.1)$) {$\exp_z$};
+
+% collar1
+\draw [dashed] (\d,-1) to [bend right=10] (\d,1);
+\draw (\d,-1) to [bend left=15] (\d,1);
+\draw (\d+\w,-1) to [bend right=10] (\d+\w,1);
+\draw (\d+\w,-1) to [bend left=15] (\d+\w,1);
+\draw (\d+\w,-1) -- (\d,-1);
+\draw (\d+\w,1) -- (\d,1);
+
+\node at (\d+0.25*\w,0.4) {$\bullet$};
+\node [right] at (\d+\w,0.4) {$\exp_y(j(\tfrac{1}{s}\tau_1))$};
+\node at (\d+0.75*\w,-0.8) {$\bullet$};
+\node [below] at (\d+0.75*\w,-0.9) {$\exp_y(\tfrac{1}{t}\tau_1)$};
+\node at (\d+0.5*\w,-2) {$A_y$};
+
+% tan1
+\coordinate (center1) at (\r+3,-\h);
+\coordinate (jt1) at ($(center1)+(0.2,0.5)$);
+\coordinate (t1) at ($(center1)+(0.4,-0.4)$);
+\draw [->] (center1) to (t1);
+\draw [->] (center1) to (jt1);
+\node [below] at (t1) {$\tau_1$};
+\node [above] at (jt1) {$j(\tau_1)$};
+\draw ($(center1)+(1,-2)$) -- ($(center1)+(1,1)$) -- ($(center1)+(-1,2)$) -- ($(center1)+(-1,-1)$) -- cycle;
+\node at ($(center1)+(0,-2)$) {$T_y\Sigma_1$};
+
+% exp1
+\coordinate (arrow1) at ($0.5*(center1)+0.5*(\d,0)$);
+\draw [->] ($(arrow1)+(0.75,-0.25)$) to [bend right] ($(arrow1)+(-0.75,0.25)$);
+\node [above right] at ($(arrow1)+(0,0.1)$) {$\exp_y$};
+
+% iota
+\draw [<->] (-0.5*\d,0) -- (0.5*\d,0);
+\node [above] at (0,0) {$\iota_\tau$};
+
+\end{tikzpicture}
+\caption{Identifying collars via $\tau$.}
+\end{figure}
+
+\stepcounter{section}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+% sigma0
+\coordinate (sigma0) at (0,0);
+\def\rzero{2}
+\disk[](sigma0)(\rzero)(1.5*\rzero);
+\begin{scope}[shift=(sigma0)]
+	\node [below] at (0,-0.5) {$\Sigma_0$};
+\end{scope}
+
+% sigma1
+\coordinate (node1) at ($(sigma0)+(-1.49,2)$);
+\def\rone{2}
+\torus[](node1)(50)(\rone)
+\begin{scope}[shift=(node1), rotate around={50:(node1)}]
+    \node [above left] at ($(node1)+(0,2*\rone)$) {$\Sigma_1$};
+\end{scope}
+
+% sigma2
+\coordinate (node2) at ($(sigma0)+(1,2.6)$);
+\def\rtwo{1}
+
+\begin{scope}[shift=(node2), rotate around={-30:(node2)}]
+    \coordinate (node2a) at (-0.707*\rtwo,1.707*\rtwo);
+    \coordinate (node2b) at (0.707*\rtwo,1.707*\rtwo);
+    \sphere[](0,\rtwo)(\rtwo)(\rtwo);
+    \node at (0,0) {$\bullet$};
+    \torus[](node2a)(40)(1);
+    \closedGhost[](node2b)(-30)(1.2)(1.6)(2);
+    \node [left] at (0,3) {$\Sigma_2$};
+\end{scope}
+
+% sigma3
+\coordinate (node3) at ($(sigma0)+(\rzero,0)$);
+\openGhost[](node3)(1.5)(2)(2)();
+\begin{scope}[shift=(node3)]
+	\addGenus[](1.5,1.1)(0)(0.5)
+	\node at (1.5,-0.5) {$\Sigma_3$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{A curve with three ghost branches, modeled on $(1,3,(1,2))$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[scale=0.5]
+
+\def\r{1.5} % radius
+\def\w{5} % distance between curves
+
+%%%%%%%%%%%%%%%%%%%%%%%% collision
+
+\coordinate (coll) at (0,0);
+
+\sphere[](coll)(\r)(\r);
+
+% ghosts
+\coordinate (nodeC) at ($(coll)+(0,\r)$);
+\node at (nodeC) {$\bullet$};
+
+\begin{scope}[shift=(nodeC), rotate around={30:(nodeC)}]
+	\draw (0,0) to [out=60,in=0] (0,3) to [out=180,in=150] (0,0);
+    \addGenus[](0,2)(90)(0.5);
+\end{scope}
+\begin{scope}[shift=(nodeC), rotate around={-30:(nodeC)}]
+    \draw (0,0) to [out=120,in=180] (0,3) to [out=0,in=30] (0,0);
+    \addGenus[](0,1.2)(0)(0.3);
+    \addGenus[](0,2.1)(0)(0.3);
+\end{scope}
+
+% conjugate ghosts
+\coordinate (negNodeC) at ($(coll)+(0,-\r)$);
+\node at (negNodeC) {$\bullet$};
+
+\begin{scope}[shift=(negNodeC), yscale=-1, rotate around={30:(negNodeC)}]
+	\draw (0,0) to [out=60,in=0] (0,3) to [out=180,in=150] (0,0);
+    \addGenus[](0,2)(90)(0.5);
+\end{scope}
+\begin{scope}[shift=(negNodeC), yscale=-1, rotate around={-30:(negNodeC)}]
+    \draw (0,0) to [out=120,in=180] (0,3) to [out=0,in=30] (0,0);
+    \addGenus[](0,1.2)(0)(0.3);
+    \addGenus[](0,2.1)(0)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% bubble
+
+\coordinate (bubble) at (2*\w,0);
+
+\sphere[](bubble)(\r)(\r);
+
+% ghosts
+\coordinate (nodeB) at ($(bubble)+(0,\r)$);
+\coordinate (nodeB1) at ($(nodeB)+(-0.3*\r,0.9*\r)$);
+\coordinate (nodeB2) at ($(nodeB)+(0.3*\r,0.9*\r)$);
+
+\sphere[]($(nodeB)+(0,0.5*\r)$)(0.5*\r)(0.5*\r);
+\node at (nodeB) {$\bullet$};
+
+\torus[](nodeB1)(30)(1.5);
+
+\closedGhost[](nodeB2)(-30)(0.9)(1.5)(2);
+
+% conjugate ghosts
+\coordinate (negNodeB) at ($(bubble)+(0,-\r)$);
+\coordinate (negNodeB1) at ($(negNodeB)+(-0.3*\r,-0.9*\r)$);
+\coordinate (negNodeB2) at ($(negNodeB)+(0.3*\r,-0.9*\r)$);
+
+\sphere[]($(negNodeB)+(0,-0.5*\r)$)(0.5*\r)(0.5*\r);
+\node at (negNodeB) {$\bullet$};
+
+\begin{scope}[yscale=-1]
+    \torus[](negNodeB1)(30)(1.5);
+
+    \closedGhost[](negNodeB2)(-30)(0.9)(1.5)(2);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% smoothing
+
+\coordinate (smooth) at (4*\w,0);
+
+\sphere[](smooth)(\r)(\r);
+
+% ghost
+\coordinate (nodeS) at ($(smooth)+(0,\r)$);
+\node at (nodeS) {$\bullet$};
+
+\begin{scope}[shift={(nodeS)}]
+\draw (0,0) to [out=0,in=-140] (1,1.6) to [out=40,in=-90] (2.1,2.8) to [out=90,in=0] (1.5,3.6) to [out=180,in=90] (0.7,2.8) to [out=-90,in=0] (0,1.5) to [out=180,in=-90] (-0.7,2.8) to [out=90,in=0] (-1.5,3.6) to [out=180,in=90] (-2.1,2.8) to [out=-90,in=140] (-1,1.6) to [out=-40,in=180] (0,0);
+\addGenus[](-1.4,2.8)(120)(0.4);
+\addGenus[](1.2,2.34)(-30)(0.3);
+\addGenus[](1.5,3.12)(-30)(0.3);
+\end{scope}
+
+% conjugate ghost
+\coordinate (negNodeS) at ($(smooth)+(0,-\r)$);
+\node at (negNodeS) {$\bullet$};
+
+\begin{scope}[shift={(negNodeS)}, yscale=-1]
+\draw (0,0) to [out=0,in=-140] (1,1.6) to [out=40,in=-90] (2.1,2.8) to [out=90,in=0] (1.5,3.6) to [out=180,in=90] (0.7,2.8) to [out=-90,in=0] (0,1.5) to [out=180,in=-90] (-0.7,2.8) to [out=90,in=0] (-1.5,3.6) to [out=180,in=90] (-2.1,2.8) to [out=-90,in=140] (-1,1.6) to [out=-40,in=180] (0,0);
+\addGenus[](-1.4,2.8)(120)(0.4);
+\addGenus[](1.2,2.34)(-30)(0.3);
+\addGenus[](1.5,3.12)(-30)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% arrows
+
+\def\h{1}
+\coordinate (arr1) at ($0.5*(coll)+0.5*(bubble)+(0,\h)$);
+\coordinate (arr2) at ($0.5*(bubble)+0.5*(smooth)+(0,\h)$);
+\draw [->, bend left] ($(arr1)+(-1,0)$) to ($(arr1)+(1,0)$);
+\draw [->, bend right] ($(arr2)+(1,0)$) to ($(arr2)+(-1,0)$);
+\node [above=5pt] at (arr1) {\footnotesize reparametrization};
+\node [above=5pt] at (arr2) {\footnotesize degeneration};
+
+\end{tikzpicture}
+\caption{(I) The collision of genus $1$ and $2$ ghosts as a degeneration of a genus $3$ ghost.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[scale=0.7]
+
+\def\r{1.5}
+\def\w{4} % distance between curves
+
+%%%%%%%%%%%%%%%%%%%%%%%% collision
+
+\coordinate (coll) at (0,0);
+
+\coordinate (nodeC) at ($(coll)+(0,-0.175*\r)$);
+
+\draw (coll) circle (\r);
+
+\begin{scope} % erase main component blocked by left ghost
+	\clip ($(nodeC)+(-1.4,0)$) ellipse (1.4 and 0.8);
+	\draw [white, fill=white] (coll) circle (\r+1);
+	\draw [dashed] (coll) circle (\r);
+\end{scope}
+
+\begin{scope} % fill main component in hole of left ghost
+	\clip ($(nodeC)+(-1.4,0)$) ellipse (0.5 and 0.3);
+	\draw [bend right = 15] ($(coll)+(-\r,0)$) to ($(coll)+(\r,0)$);
+	\draw (coll) circle (\r);
+\end{scope}
+
+\begin{scope} % erase main component blocked by right ghost
+	\clip ($(nodeC)+(1.4,0)$) ellipse (1.4 and 0.8);
+	\draw [white, fill=white] (coll) circle (\r+1);
+	\draw [dashed] (coll) circle (\r);
+\end{scope}
+
+% main component details
+\draw [dashed, bend right = 15] ($(coll)+(-\r,0)$) to ($(coll)+(\r,0)$);
+\node at (nodeC) {$\bullet$};
+
+\begin{scope}[shift={(nodeC)}]
+    % left ghost
+	\draw (-1.4,0) ellipse (1.4 and 0.8);
+	\draw (-1.4,0) ellipse (0.5 and 0.3);
+	\draw [bend right = 15] (-2.8,0) to (-1.9,0);
+	\draw [bend right = 15] (-0.9,0) to (0,0);
+    
+    % right ghost
+	\draw (1.4,0) ellipse (1.4 and 0.8);
+	\draw [bend right = 15] (0,0) to (2.8,0);
+	\addGenus[](0.9,0.5)(20)(0.3);
+	\addGenus[](2.1,0.45)(-10)(0.3);
+	\addGenus[yscale=-1](0.9,-0.5)(20)(0.3);
+	\addGenus[yscale=-1](2.1,-0.45)(-10)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% bubble
+
+\coordinate (bubble) at (2*\w,0);
+\coordinate (nodeB) at ($(bubble)+(0,-0.175*\r)$);
+\coordinate (sphere) at ($(nodeB)+(0,-0.04*\r)$);
+\coordinate (nodeB1) at ($(sphere)+(-0.5*\r,0)$);
+\coordinate (nodeB2) at ($(sphere)+(0.5*\r,0)$);
+
+\draw (bubble) circle (\r);
+
+\begin{scope} % erase main component blocked by left ghost
+	\clip ($(nodeB1)+(-1.4,0)$) ellipse (1.4 and 0.8);
+	\draw [white, fill=white] (bubble) circle (\r+1);
+	\draw [dashed] (bubble) circle (\r);
+\end{scope}
+
+\begin{scope} % erase main component blocked by right ghost
+	\clip ($(nodeB2)+(1.4,0)$) ellipse (1.4 and 0.8);
+	\draw [white, fill=white] (bubble) circle (\r+1);
+	\draw [dashed] (bubble) circle (\r);
+\end{scope}
+
+% main component details
+\draw [dashed, bend right = 15] ($(bubble)+(-\r,0)$) to ($(bubble)+(\r,0)$);
+
+\node at (nodeB) {$\bullet$};
+\node at (nodeB1) {$\bullet$};
+\node at (nodeB2) {$\bullet$};
+
+\begin{scope}[shift=(sphere)] % center ghost
+	\draw (0,0) circle (0.5*\r);
+	\draw [bend right = 15] (-0.5*\r,0) to (0.5*\r,0);
+	\draw [dashed, bend left = 10] (-0.5*\r,0) to (0.5*\r,0);
+\end{scope}
+
+\begin{scope}[shift={(nodeB1)}] % left ghost
+	\draw (-1.4,0) ellipse (1.4 and 0.8);
+	\draw (-1.4,0) ellipse (0.5 and 0.3);
+	\draw [bend right = 15] (-2.8,0) to (-1.9,0);
+	\draw [bend right = 15] (-0.9,0) to (0,0);
+\end{scope}
+
+\begin{scope}[shift={(nodeB2)}] % right ghost
+	\draw (1.4,0) ellipse (1.4 and 0.8);
+	\draw [bend right = 15] (0,0) to (2.8,0);
+	\addGenus[](0.9,.45)(20)(0.3);
+	\addGenus[yscale=-1](0.9,-0.45)(20)(0.3);
+	\addGenus[](2.1,0.45)(-10)(0.3);
+	\addGenus[yscale=-1](2.1,-0.45)(-10)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% smoothing
+
+\coordinate (smooth) at (4*\w,0);
+
+\coordinate (nodeS) at ($(smooth)+(0,-0.175*\r)$);
+\coordinate (sphereS) at ($(nodeS)+(0,-0.04*\r)$);
+
+\draw (smooth) circle (\r);
+
+\begin{scope}[shift={(sphereS)}]
+    % use preaction to fix conflict between extra options (white) and clip
+	\path[preaction={draw,fill=white}][clip] (0,0.5*\r) to [out=180, in=0] (-0.5*\r,0.4) to [out=180, in=0] (-0.5*\r-1.4,0.8) to [out=180, in=90] (-0.5*\r-2.8,0) to [out=-90, in=180] (-0.5*\r-1.4,-0.8) to [out=0, in=180] (-0.5*\r,-0.4) to [out=0, in=180] (0,-0.5*\r) to [out=0, in=180] (0.5*\r,-0.4) to [out=0, in=180] (0.5*\r+1.4,-0.8) to [out=0, in=-90] (0.5*\r+2.8,0) to [out=90, in=0] (0.5*\r+1.4,0.8) to [out=180, in=0] (0.5*\r,0.4) to [out=180, in=0] (0,0.5*\r);
+
+	\draw (-0.5*\r-0.9,0) to [out=-15,in=180] (0.5*\r,-0.2) to [out=0,in=195] (0.5*\r+2.8,0);
+	\draw [dashed] (-0.5*\r-0.9,0) to [out=10,in=180] (nodeS) to [out=0,in=170] (0.5*\r+2.8,0);
+
+    \draw[dashed] (smooth) circle (\r);
+\end{scope}
+
+\draw [dashed, bend right = 15] ($(smooth)+(-\r,0)$) to ($(smooth)+(\r,0)$);
+
+\node at (nodeS) {$\bullet$};
+
+\begin{scope}[shift={($(sphereS)+(-0.5*\r,0)$)}]
+	\draw (-1.4,0) ellipse (0.5 and 0.3);
+	\draw [bend right = 15] (-2.8,0) to (-1.9,0);
+\end{scope}
+
+\begin{scope}[shift={($(sphereS)+(0.5*\r,0)$)}]
+	\addGenus[](0.9,0.45)(20)(0.3);
+	\addGenus[yscale=-1](0.9,-0.45)(20)(0.3);
+	\addGenus[](2.1,0.45)(-10)(0.3);
+	\addGenus[yscale=-1](2.1,-0.45)(-10)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% arrows
+
+\def\h{1}
+\coordinate (arr1) at ($0.5*(coll)+0.5*(bubble)+(0,\h)$);
+\coordinate (arr2) at ($0.5*(bubble)+0.5*(smooth)+(0,\h)$);
+\draw [->, bend left] ($(arr1)+(-1,0)$) to ($(arr1)+(1,0)$);
+\draw [->, bend right] ($(arr2)+(1,0)$) to ($(arr2)+(-1,0)$);
+\node [above=5pt] at (arr1) {\footnotesize reparametrization};
+\node [above=5pt] at (arr2) {\footnotesize degeneration};
+
+\end{tikzpicture}
+\caption{(II) The collision of ghosts of type $(0,2)$ and $(2,1)$ as a degeneration of a ghost of type $(2,2)$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[scale=0.5]
+
+\def\r{1.5}
+\def\w{6}
+
+%%%%%%%%%%%%%%%%%%%%%%%% collision
+
+\coordinate (coll) at (0,0);
+
+\sphere[](coll)(\r)(\r);
+
+\coordinate (nodeC) at ($(coll)+(\r,0)$);
+\node at (nodeC) {$\bullet$};
+
+% ghost
+\begin{scope}[shift=(nodeC), rotate around={-60:(nodeC)}]
+    \draw (0,0) to [out=60,in=0] (0,3) to [out=180,in=150] (0,0);
+    \addGenus[](0,1.2)(0)(0.3);
+    \addGenus[](0,2.1)(0)(0.3);
+\end{scope}
+
+% conjugate ghost
+\begin{scope}[yscale=-1, shift=(nodeC), rotate around={-60:(nodeC)}]
+    \draw (0,0) to [out=60,in=0] (0,3) to [out=180,in=150] (0,0);
+    \addGenus[](0,1.2)(0)(0.3);
+    \addGenus[](0,2.1)(0)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% bubble
+
+\coordinate (bubble) at (2*\w,0);
+
+\sphere[](bubble)(\r)(\r);
+
+% ghost sphere
+\coordinate (nodeB) at ($(bubble)+(\r,0)$);
+\node at (nodeB) {$\bullet$};
+\sphere[]($(nodeB)+(0.5*\r,0)$)(0.5*\r)(0.5*\r);
+
+% ghost torus
+\coordinate (nodeB1) at ($(nodeB)+(0.9*\r,0.3*\r)$);
+\closedGhost[](nodeB1)(-60)(0.75)(1.5)(2);
+
+% conjugate torus
+\coordinate (negNodeB1) at ($(nodeB)+(0.9*\r,-0.3*\r)$);
+\begin{scope}[shift=(negNodeB1), yscale=-1]
+    \closedGhost[](0,0)(-60)(0.75)(1.5)(2);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% smoothing
+
+\coordinate (smooth) at (4*\w,0);
+
+\sphere[](smooth)(\r)(\r);
+
+% ghost
+\coordinate (nodeS) at ($(smooth)+(\r,0)$);
+\node at (nodeS) {$\bullet$};
+
+\begin{scope}[shift={(nodeS)}, rotate around={-90:(nodeS)}]
+	\draw [bend right = 15] (0,0) to (0,1.5);
+	\draw [dashed, bend left = 10] (0,0) to (0,1.5);
+	\draw (0,0) to [out=0,in=-140] (1,1.6) to [out=40,in=-90] (2.1,2.8) to [out=90,in=0] (1.5,3.6) to [out=180,in=90] (0.7,2.8) to [out=-90,in=0] (0,1.5) to [out=180,in=-90] (-0.7,2.8) to [out=90,in=0] (-1.5,3.6) to [out=180,in=90] (-2.1,2.8) to [out=-90,in=140] (-1,1.6) to [out=-40,in=180] (0,0);
+	\addGenus[](-1.2,2.34)(30)(0.3);
+	\addGenus[](-1.5,3.12)(30)(0.3);
+	\addGenus[](1.2,2.34)(-30)(0.3);
+	\addGenus[](1.5,3.12)(-30)(0.3);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%% arrows
+
+\def\h{1}
+\coordinate (arr1) at ($0.5*(nodeC)+0.5*(nodeB)+(0,\h)$);
+\coordinate (arr2) at ($0.5*(nodeB)+0.5*(nodeS)+(0.5,\h)$);
+\draw [->, bend left] ($(arr1)+(-1,0)$) to ($(arr1)+(1,0)$);
+\draw [->, bend right] ($(arr2)+(1,0)$) to ($(arr2)+(-1,0)$);
+\node [above=5pt] at (arr1) {\footnotesize reparametrization};
+\node [above=5pt] at (arr2) {\footnotesize degeneration};
+
+\end{tikzpicture}
+\caption{(III) The collision of a genus $2$ ghost with the boundary as a degeneration of a ghost of type $(2,1)$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+\def\h{1.2}
+\def\w{0.8}
+
+\sphere[](0,0)(\r)(\r);
+\node at (0,-\r) {$\bullet$};
+\node [below] at (0,-\r) {$y$};
+
+% left ghost
+\coordinate (node1) at (-0.8*\r,0.6*\r);
+\closedGhost[](node1)(50)(\w)(\h)(2);
+\begin{scope}[shift={(node1)}, rotate around={50:(node1)}]
+	\node [above left] at (0,2*\h) {$\Sigma$};
+\end{scope}
+
+% right ghost
+\coordinate (node2) at (0.8*\r,0.6*\r);
+\closedGhost[](node2)(-50)(\w)(\h)(3);
+\begin{scope}[shift={(node2)}, rotate around={-50:(node2)}]
+	\node [above right] at (0,2*\h) {$\Sigma'$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Embedding $\Mbar_{g_i,1} \times \Mbar_{g_{i'},1}$ in $\Mbar_{g_i+g_{i'},1}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+
+\node at (-\r,0) {$\bullet$};
+\node at (\r,0) {$\bullet$};
+\node at (0,-0.175*\r) {$\bullet$};
+\node [below] at (0,-0.175*\r) {$y$};
+
+\sphere[](0,0)(\r)(\r);
+
+% left ghost
+\begin{scope}[shift={(-2*\r,0)}]
+	\sphere[](0,0)(\r)(1.4*\r);
+	
+	\addGenus[](-.45*\r,0.75*\r)(70)(0.3);
+	\addGenus[](0.45*\r,0.6*\r)(-30)(0.3);
+	\addGenus[](-.45*\r,-0.75*\r)(110)(0.3);
+	\addGenus[](0.45*\r,-0.6*\r)(-150)(0.3);
+	
+	\node [left] at (-\r,0) {$\Sigma^{(\C)}$};
+\end{scope}
+
+% right ghost
+\begin{scope}[shift={(2*\r,0)}]
+	\draw (0,0) ellipse ({\r} and {1.4*\r});
+	\draw [bend right=15] (-\r,0) to (-0.5*\r,0);
+	\draw [dashed, bend left=10] (-\r,0) to (-0.5*\r,0);
+	\draw [bend right=15] (0.5*\r,0) to (\r,0);
+	\draw [dashed, bend left=10] (0.5*\r,0) to (\r,0);
+	\draw (0.5*\r,0) arc (0:360:{0.5*\r} and {0.25*\r});
+	
+	\addGenus[](0,0.8*\r)(0)(0.4);
+	\addGenus[](0,-0.8*\r)(180)(0.4);
+	
+	\node [right] at (\r,0) {$(\Sigma')^{(\C)}$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Embedding $\Mbar_{(g_i,h_i),0,(1,0,\ldots,0)} \times \Mbar_{(g_{i'},h_{i'}),0,(1,0,\ldots,0)}$ in $\Mbar_{(g_i+g_{i'},h_i+h_{i'}-1),0,(1,0,\ldots,0)}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+\def\h{1.2}
+\def\w{0.8}
+
+\sphere[](0,0)(\r)(\r);
+\node at (-\r,0) {$\bullet$};
+\node [left] at (-\r,0) {$y$};
+
+% ghost
+\coordinate (node1) at (0.8*\r,0.6*\r);
+\closedGhost[](node1)(-40)(\w)(\h)(2);
+\begin{scope}[shift={(node1)}, rotate around={-40:(node1)}]
+	\node [above right] at (0,2*\h) {$\Sigma$};
+\end{scope}
+
+% conjugate ghost
+\coordinate (node2) at (0.8*\r,-0.6*\r);
+\closedGhost[](node2)(-130)(\w)(\h)(2);
+\begin{scope}[shift={(node2)}, rotate around={-130:(node2)}]
+	\node [below right] at (0,2*\h) {$\ov{\Sigma}$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Embedding $\Mbar_{g_i,1}$ in $\Mbar_{(g_{i},1),0,(1,0,\ldots,0)}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+\def\h{1}
+\def\w{0.6}
+\def\d{5}
+
+\coordinate (c1) at (0,\d);
+\coordinate (c2) at (1.5*\d,\d);
+\coordinate (c3) at (0,0);
+\coordinate (c4) at (1.5*\d,0);
+
+%%%%%%%%%%%%%%%%%%%%%%%% curve1
+
+\disk[](c1)(\r)(\r);
+
+% left ghost
+\coordinate (LNode1) at ($(c1)+(-0.6*\r,0.8*\r)$);
+\node [below right] at (LNode1) {$a$};
+\torus[](LNode1)(30)(\h);
+
+% right ghost
+\coordinate (RNode1) at ($(c1)+(0.6*\r,0.8*\r)$);
+\node [below left] at (RNode1) {$b$};
+\closedGhost[](RNode1)(-30)(\w)(\h)(2);
+
+\node at ($(c1)+(0,-1)$) {$\lambda_1=(1,2)$};
+
+%%%%%%%%%%%%%%%%%%%%%%%% curve2
+
+\disk[](c2)(\r)(\r);
+
+% left ghost
+\coordinate (LNode2) at ($(c2)+(-\r,0)$);
+\node [below right] at (LNode2) {$c$};
+\openGhost[](LNode2)(\w)(\h)(1)(left);
+\begin{scope}[shift={(LNode2)}]
+	\addGenus[](-1*\w,0.5*\h)(0)(0.25);
+\end{scope}
+
+% right ghost
+\coordinate (RNode2) at ($(c2)+(0.6*\r,0.8*\r)$);
+\node [below] at (RNode2) {$b'$};
+\closedGhost[](RNode2)(-30)(\w)(\h)(2);
+
+\node at ($(c2)+(0,-1)$) {$\lambda_2=((1,1),2)$};
+
+%%%%%%%%%%%%%%%%%%%%%%%% curve3
+
+\disk[](c3)(\r)(\r);
+
+% left ghost
+\coordinate (LNode3) at ($(c3)+(-0.6*\r,0.8*\r)$);
+\node [below right] at (LNode3) {$a'$};
+\torus[](LNode3)(30)(\h);
+
+% right ghost
+\coordinate (RNode3) at ($(c3)+(\r,0)$);
+\node [below] at (RNode3) {$d$};
+\openGhost[](RNode3)(\w)(1.5*\h)(1)();
+\begin{scope}[shift={(RNode3)}]
+	\addGenus[](\w,0.4*\h)(0)(0.2);
+	\addGenus[](\w,0.8*\h)(0)(0.2);
+\end{scope}
+
+\node at ($(c3)+(0,-1)$) {$\lambda_3=(1,(2,1))$};
+
+%%%%%%%%%%%%%%%%%%%%%%%% curve4
+
+\disk[](c4)(\r)(\r);
+
+% left ghost
+\coordinate (LNode4) at ($(c4)+(-\r,0)$);
+\node [below right] at (LNode4) {$c'$};
+\openGhost[](LNode4)(\w)(\h)(1)(left);
+\begin{scope}[shift={(LNode4)}]
+	\addGenus[](-1*\w,0.5*\h)(0)(0.25);
+\end{scope}
+
+% right ghost
+\coordinate (RNode4) at ($(c4)+(\r,0)$);
+\node [below] at (RNode4) {$d'$};
+\openGhost[](RNode4)(\w)(1.5*\h)(1)();
+\begin{scope}[shift={(RNode4)}]
+	\addGenus[](\w,0.4*\h)(0)(0.2);
+	\addGenus[](\w,0.8*\h)(0)(0.2);
+\end{scope}
+
+\node at ($(c4)+(0,-1)$) {$\lambda_4=((1,1),(2,1))$};
+
+\end{tikzpicture}
+\caption{Curves in $\Nbar_{\lambda_1}$, $\Nbar_{\lambda_2}$, $\Nbar_{\lambda_3}$, and $\Nbar_{\lambda_4}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1}
+\def\h{1}
+\def\w{0.6}
+\def\d{5}
+
+\coordinate (main) at (0,0);
+\coordinate (lDisk) at (-2*\r,0);
+\coordinate (rDisk) at (2*\r,0);
+
+\disk[](main)(\r)(\r);
+\disk[](lDisk)(\r)(\r);
+\disk[](rDisk)(\r)(\r);
+
+\node at (-\r,0) {$\bullet$};
+\node [below] at (-\r,0) {$c=c'$};
+\node at (\r,0) {$\bullet$};
+\node [below] at (\r,0) {$d=d'$};
+
+\coordinate (LNode1) at ($(lDisk)+(-0.6*\r,0.8*\r)$);
+\torus[](LNode1)(30)(\h);
+\begin{scope}[shift=(LNode1), rotate around={-60:(LNode1)}]
+    \node [left=1pt] at (0,-0.4) {$a=a'$};
+\end{scope}
+
+\coordinate (RNode1) at ($(rDisk)+(0.6*\r,0.8*\r)$);
+\closedGhost[](RNode1)(-30)(\w)(\h)(2);
+\begin{scope}[shift=(RNode1), rotate around={-30:(RNode1)}]
+    \node [right=1pt] at (0.4,0) {$b=b'$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{A curve in $\Nbar_{\lambda_1} \cap \Nbar_{\lambda_2} \cap \Nbar_{\lambda_3} \cap \Nbar_{\lambda_4}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+% open curve
+\disk[](0,0)(2)(2);
+\openGhost[](2,0)(1.5)(2)(2)();
+\addGenus[](3,1)(40)(0.25);
+\addGenus[](4.25,0.75)(-20)(0.25);
+
+% doubled curve
+\begin{scope}[xshift=8cm]
+    \sphere[](0,0)(2)(2);
+    \openGhost[](2,0)(1.5)(2)(2)();
+    \draw (5,0) arc (0:-180:1.5 and 2);
+    \draw (4,0) arc (0:-180:0.5 and 0.5);
+    \addGenus[](3,1)(40)(0.25);
+    \addGenus[](3,-1)(140)(0.25);
+    \addGenus[](4.25,0.75)(-20)(0.25);
+    \addGenus[](4.25,-0.75)(200)(0.25);
+\end{scope}
+
+\end{tikzpicture}
+\caption{A curve modeled on $((2,2))$ and its genus $5$ double.}
+\end{figure}
+
+\setcounter{section}{7}
+\setcounter{figure}{0}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1.5}
+\def\h{1.2}
+\def\w{0.8}
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\coordinate (c1) at (0,0);
+\disk[](c1)(\r)(\r);
+
+\coordinate (Lnode1) at (-0.6*\r,0.8*\r);
+\node [below right] at (Lnode1) {$a$};
+\torus[](Lnode1)(30)(\h);
+
+\coordinate (Rnode1) at (0.6*\r,0.8*\r);
+\node [below left] at (Rnode1) {$b$};
+\closedGhost[](Rnode1)(-30)(\w)(\h)(2);
+
+\coordinate (Bnode1) at (\r,0);
+\node [below] at (Bnode1) {$c$};
+\openGhost[](Bnode1)(0.5*\r)(0.75*\r)(1)();
+\begin{scope}[shift={(Bnode1)}]
+	\addGenus[](0.5*\r,0.3*\r)(0)(0.25);
+\end{scope}
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\coordinate (c2) at (6,0);
+\disk[](c2)(\r)(\r);
+
+\coordinate (node2) at ($(c2)+(0,\r)$);
+\node [below] at (node2) {$d$};
+\closedGhost[](node2)(0)(\w)(\h)(3);
+
+\coordinate (Bnode2) at ($(c2)+(\r,0)$);
+\node [below] at (Bnode2) {$e$};
+\openGhost[](Bnode2)(0.5*\r)(0.75*\r)(1)();
+\begin{scope}[shift={(Bnode2)}]
+	\addGenus[](0.5*\r,0.3*\r)(0)(0.25);
+\end{scope}
+
+\end{tikzpicture}
+\caption{Two curves of type $(4,1)$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{1.5}
+\def\rb{1}
+\def\h{1.2}
+\def\w{0.8}
+
+\coordinate (c1) at (0,0);
+\disk[](c1)(\r)(\r);
+
+\coordinate (c2) at (0,\r+\rb);
+\coordinate (node2) at ($(c2)+(0,-\rb)$);
+\node at (node2) {$\bullet$};
+\node [below] at (node2) {$d$};
+\sphere[](c2)(\rb)(\rb);
+
+\coordinate (Lnode1) at ($(c2)+(-0.6*\rb,0.8*\rb)$);
+\node [below right] at (Lnode1) {$a$};
+\torus[](Lnode1)(30)(\h);
+
+\coordinate (Rnode1) at ($(c2)+(0.6*\rb,0.8*\rb)$);
+\node [below left] at (Rnode1) {$b$};
+\closedGhost[](Rnode1)(-30)(\w)(\h)(2);
+
+\coordinate (Bnode1) at (\r,0);
+\node [below] at (Bnode1) {$c=e$};
+\openGhost[](Bnode1)(0.5*\r)(0.75*\r)(1)();
+\begin{scope}[shift={(Bnode1)}]
+	\addGenus[](0.5*\r,0.3*\r)(0)(0.25);
+\end{scope}
+
+\end{tikzpicture}
+\caption{A curve in $\Nbar_{(1,2,(1,1))} \cap \Nbar_{(3,(1,1))}$.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\r{2}
+\def\w{0.6*\r}
+
+% sigma0
+\coordinate (sigma0) at (-1,0);
+
+\begin{scope}[shift=(sigma0)]
+	\draw (0,0) circle (\r);
+	\draw [thick, bend right = 15] (-\r,0) to (\r,0);
+\end{scope}
+
+% collar0
+\begin{scope}[shift=(sigma0)]
+    % erase part of sphere
+	\draw [white, fill=white] (1.8,-0.872) to [bend left=20] (1.8,0.872) -- (2.1,1) -- (2.1,-1) -- cycle;
+	
+	% draw edges of collar
+	\draw (1.8,-0.872) to [bend right=5] (1.8,0.872);
+	\draw (1.8,-0.872) to [bend left=20] (1.8,0.872);
+	\draw (1.6,-1.2) to [bend left=20] (1.6,1.2);
+\end{scope}
+\begin{scope}[shift=(sigma0)]
+    % fill collar
+	\clip (sigma0) circle (\r);
+	\draw [pattern = north east lines] (1.8,-0.872) to [bend left=20] (1.8,0.872) to [bend right=50] (1.6,1.2) to [bend right=20] (1.6,-1.2) to [bend right=50] cycle;
+\end{scope}
+\node [below right] at ($(sigma0)+(1.7,-0.872)$) {$A_{z_i}$};
+
+% sigma1
+\coordinate (sigma1) at (4,0);
+\begin{scope}[shift=(sigma1)]
+	\draw (0,0) ellipse ({\w} and {\r});
+	\draw [thick, bend right = 15] (-\w,0) to (\w,0);
+	\addGenus[](0,0.375*\r)(20)(0.5);
+	\addGenus[](0,-0.375*\r)(160)(0.5);
+\end{scope}
+
+% collar1
+\begin{scope}[shift={(-\w+0.2,0)}]
+    % erase part of surface
+    \draw [white, fill=white] (3.92,-0.872) to [bend right=20] (3.92,0.872) -- (3.7,1) -- (3.7,-1) -- cycle;
+    
+    % draw edges of collar
+    \draw (3.92,-0.872) to [bend left=5] (3.92,0.872);
+    \draw (3.92,-0.872) to [bend right=20] (3.92,0.872);
+    \draw (4.04,-1.2) to [bend right=20] (4.04,1.2);
+\end{scope}
+\begin{scope}[shift={(-\w+0.2,0)}]
+    \node [below left] at (3.92,-0.872) {$A_{y_i}$};
+    % fill collar
+    \clip (sigma1) ellipse ({\w} and {\r});
+    \draw [pattern = north east lines] (3.92,-0.872) to [bend right=20] (3.92,0.872) to [bend left=50] (4.04,1.2) to [bend left=20] (4.04,-1.2) to [bend left=50] cycle;
+    \node [below left] at (3.92,-0.872) {$A_{y_i}$};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Collars near nodes.}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+
+\def\d{1}
+\def\w{1}
+\def\r{3}
+\def\h{2}
+
+% collar0
+\draw (-\d,-1) to [bend right=10] (-\d,1);
+\draw (-\d,-1) to [bend left=15] (-\d,1);
+\draw [dashed] (-\d-\w,-1) to [bend right=10] (-\d-\w,1);
+\draw (-\d-\w,-1) to [bend left=15] (-\d-\w,1);
+\draw (-\d-\w,-1) -- (-\d,-1);
+\draw (-\d-\w,1) -- (-\d,1);
+\node at (-\d-0.75*\w,0.4) {$\bullet$};
+\node [left] at (-\d-\w,0.4) {$\exp_{z_i}(-j(s\tau_{z_i}))$};
+\node at (-\d-0.25*\w,-0.8) {$\bullet$};
+\node [below] at (-\d-0.25*\w,-0.9) {$\exp_{z_i}(t\tau_{z_i})$};
+\node at (-\d-0.5*\w,-2) {$A_{z_i}$};
+
+% tan0
+\coordinate (center0) at (-\r-3,-\h);
+\coordinate (jt0) at ($(center0)+(-0.2,0.5)$);
+\coordinate (t0) at ($(center0)+(-0.4,-0.4)$);
+\draw [->] (center0) to (t0);
+\draw [->] (center0) to (jt0);
+\node [below] at (t0) {$\tau_{z_i}$};
+\node [above] at (jt0) {$-j(\tau_{z_i})$};
+\draw ($(center0)+(-1,-2)$) -- ($(center0)+(-1,1)$) -- ($(center0)+(1,2)$) -- ($(center0)+(1,-1)$) -- cycle;
+\node at ($(center0)+(0,-2)$) {$T_{z_i}\Sigma_0$};
+
+% exp0
+\coordinate (arrow0) at ($0.5*(center0)+0.5*(-\d,0)$);
+\draw [->] ($(arrow0)+(-0.75,-0.25)$) to [bend left] ($(arrow0)+(0.75,0.25)$);
+\node [above left] at ($(arrow0)+(0,0.1)$) {$\exp_{z_i}$};
+
+% collar1
+\draw [dashed] (\d,-1) to [bend right=10] (\d,1);
+\draw (\d,-1) to [bend left=15] (\d,1);
+\draw (\d+\w,-1) to [bend right=10] (\d+\w,1);
+\draw (\d+\w,-1) to [bend left=15] (\d+\w,1);
+\draw (\d+\w,-1) -- (\d,-1);
+\draw (\d+\w,1) -- (\d,1);
+\node at (\d+0.25*\w,0.4) {$\bullet$};
+\node [right] at (\d+\w,0.4) {$\exp_{y_i}(j(\tfrac{1}{s}\tau_{y_i}))$};
+\node at (\d+0.75*\w,-0.8) {$\bullet$};
+\node [below] at (\d+0.75*\w,-0.9) {$\exp_{y_i}(\tfrac{1}{t}\tau_{y_i})$};
+\node at (\d+0.5*\w,-2) {$A_{y_i}$};
+
+% tan1
+\coordinate (center1) at (\r+3,-\h);
+\coordinate (jt1) at ($(center1)+(0.2,0.5)$);
+\coordinate (t1) at ($(center1)+(0.4,-0.4)$);
+\draw [->] (center1) to (t1);
+\draw [->] (center1) to (jt1);
+\node [below] at (t1) {$\tau_{y_i}$};
+\node [above] at (jt1) {$j(\tau_{y_i})$};
+\draw ($(center1)+(1,-2)$) -- ($(center1)+(1,1)$) -- ($(center1)+(-1,2)$) -- ($(center1)+(-1,-1)$) -- cycle;
+\node at ($(center1)+(0,-2)$) {$T_{y_i}\Sigma_i$};
+
+% exp1
+\coordinate (arrow1) at ($0.5*(center1)+0.5*(\d,0)$);
+\draw [->] ($(arrow1)+(0.75,-0.25)$) to [bend right] ($(arrow1)+(-0.75,0.25)$);
+\node [above right] at ($(arrow1)+(0,0.1)$) {$\exp_{y_i}$};
+
+% iota
+\draw [<->] (-0.5*\d,0) -- (0.5*\d,0);
+\node [above] at (0,0) {$\iota_{\tau_i}$};
+
+\end{tikzpicture}
+\caption{Identifying collars via $\tau_i$.}
+\end{figure}
+
+\end{document}
